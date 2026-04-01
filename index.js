@@ -6,8 +6,7 @@ const {
   TextInputBuilder, 
   TextInputStyle, 
   ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
+  StringSelectMenuBuilder,
   Events 
 } = require('discord.js');
 
@@ -16,7 +15,17 @@ const client = new Client({
 });
 
 const TOKEN = process.env.TOKEN;
-const CHANNEL_ID = process.env.CHANNEL_ID;
+
+// 🟢 حط 7 قنوات هنا
+const CHANNELS = {
+  c1: "1488907274373173380",
+  c2: "1488907304672821449",
+  c3: "1488907327456284692",
+  c4: "1488907450345324566",
+  c5: "1488907523355443281",
+  c6: "1488907566439338105",
+  c7: "1488907355138560100"
+};
 
 const cooldown = new Map();
 
@@ -26,35 +35,48 @@ client.once('ready', () => {
 
 client.on(Events.InteractionCreate, async interaction => {
 
+  // أمر /sell
   if (interaction.isChatInputCommand()) {
+
     if (interaction.commandName === 'sell') {
 
-      const button = new ButtonBuilder()
-        .setCustomId('sell_button')
-        .setLabel('🛒 عرض سلعة')
-        .setStyle(ButtonStyle.Primary);
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('select_category')
+        .setPlaceholder('📂 اختر القسم')
+        .addOptions([
+          { label: 'الحسابات', value: 'c1' },
+          { label: 'االعاب', value: 'c2' },
+          { label: 'ديسكورد', value: 'c3' },
+          { label: 'بروبوت', value: 'c4' },
+          { label: 'طرق', value: 'c5' },
+          { label: 'سيرفرات', value: 'c6' },
+          { label: 'اخرى', value: 'c7' }
+        ]);
 
-      const row = new ActionRowBuilder().addComponents(button);
+      const row = new ActionRowBuilder().addComponents(menu);
 
       await interaction.reply({
-        content: 'اضغط الزر لعرض سلعة',
+        content: 'اختر وين بدك تنشر السلعة:',
         components: [row]
       });
     }
   }
 
-  if (interaction.isButton() && interaction.customId === 'sell_button') {
+  // عند اختيار القسم
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select_category') {
+
+    const category = interaction.values[0];
 
     const lastUse = cooldown.get(interaction.user.id);
     if (lastUse && Date.now() - lastUse < 30 * 60 * 1000) {
-      return interaction.reply({ content: '⏳ كل 30 دقيقة فقط!', ephemeral: true });
+      return interaction.reply({ content: '⏳ فقط كل 30 دقيقة!', ephemeral: true });
     }
 
     const modal = new ModalBuilder()
-      .setCustomId('sell_modal')
-      .setTitle('عرض سلعة');
+      .setCustomId(`sell_modal_${category}`)
+      .setTitle('🛒 عرض سلعة');
 
-    const item = new TextInputBuilder()
+    const name = new TextInputBuilder()
       .setCustomId('item_name')
       .setLabel('اسم السلعة')
       .setStyle(TextInputStyle.Short);
@@ -72,7 +94,7 @@ client.on(Events.InteractionCreate, async interaction => {
       .setRequired(false);
 
     modal.addComponents(
-      new ActionRowBuilder().addComponents(item),
+      new ActionRowBuilder().addComponents(name),
       new ActionRowBuilder().addComponents(desc),
       new ActionRowBuilder().addComponents(img)
     );
@@ -80,13 +102,17 @@ client.on(Events.InteractionCreate, async interaction => {
     await interaction.showModal(modal);
   }
 
-  if (interaction.isModalSubmit() && interaction.customId === 'sell_modal') {
+  // بعد إرسال النموذج
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('sell_modal_')) {
+
+    const category = interaction.customId.split('_')[2];
+    const channelId = CHANNELS[category];
 
     const name = interaction.fields.getTextInputValue('item_name');
     const desc = interaction.fields.getTextInputValue('item_desc');
     const img = interaction.fields.getTextInputValue('item_img');
 
-    const channel = await client.channels.fetch(CHANNEL_ID);
+    const channel = await client.channels.fetch(channelId);
 
     await channel.send({
       content: `🛒 **سلعة جديدة**
